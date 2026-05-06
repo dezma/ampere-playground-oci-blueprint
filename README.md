@@ -43,10 +43,6 @@ Default model:
 hf.co/AmpereComputing/llama-3.2-3b-instruct-gguf:Llama-3.2-3B-Instruct-Q8R16.gguf
 ```
 
-## Naming
-
-The public version is **V1**. Kubernetes and Blueprints resource names use lowercase `v1` because Kubernetes-safe names should be lowercase.
-
 ## Deploy
 
 Set your Blueprints API and token:
