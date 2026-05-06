@@ -1,0 +1,188 @@
+{
+  "blueprint_category": "model_serving",
+  "blueprint_type": "community_blueprint",
+  "blueprint_title": "Ampere Optimized LLM V1 on OCI",
+  "blueprint_short_description": "Open WebUI plus Ampere optimized Ollama using an Ampere Q8R16 GGUF model.",
+  "deployment_group": {
+    "name": "ampere-optimized-llm-v1",
+    "deployments": [
+      {
+        "name": "ampere-optimized-llm-pool-v1",
+        "recipe": {
+          "recipe_mode": "shared_node_pool",
+          "deployment_name": "ampere-optimized-llm-pool-v1",
+          "shared_node_pool_selector": "ampere-optimized-llm-v1",
+          "shared_node_pool_shape": "VM.Standard.A2.Flex",
+          "shared_node_pool_size": 1,
+          "shared_node_pool_flex_shape_ocpu_count": 32,
+          "shared_node_pool_flex_shape_memory_size_in_gbs": 256,
+          "shared_node_pool_boot_volume_size_in_gbs": 500
+        }
+      },
+      {
+        "name": "ollama",
+        "depends_on": [
+          "ampere-optimized-llm-pool-v1"
+        ],
+        "exports": [
+          "service_name",
+          "internal_dns_name",
+          "service_url"
+        ],
+        "recipe": {
+          "recipe_id": "ampere_ollama_service_optimized_v1",
+          "recipe_mode": "service",
+          "deployment_name": "ampere-optimized-ollama-v1",
+          "recipe_image_uri": "ghcr.io/amperecomputingai/ollama-ampere:1.0.0-ol9",
+          "recipe_node_shape": "VM.Standard.A2.Flex",
+          "recipe_node_selector_arch": "arm64",
+          "recipe_use_shared_node_pool": true,
+          "recipe_shared_node_pool_selector": "ampere-optimized-llm-v1",
+          "recipe_container_port": "11434",
+          "recipe_host_port": "80",
+          "recipe_replica_count": 1,
+          "recipe_container_cpu_count": 16,
+          "recipe_container_memory_size": 96,
+          "recipe_ephemeral_storage_size": 60,
+          "recipe_shared_memory_volume_size_limit_in_mb": 1024,
+          "recipe_container_command": [
+            "bash",
+            "-lc"
+          ],
+          "recipe_container_command_args": [
+            "ollama serve & sleep 15 && ollama pull \"$OLLAMA_MODEL\" && wait"
+          ],
+          "recipe_container_env": [
+            {
+              "key": "OLLAMA_HOST",
+              "value": "0.0.0.0:11434"
+            },
+            {
+              "key": "OLLAMA_MODELS",
+              "value": "/ollama-models"
+            },
+            {
+              "key": "OLLAMA_MODEL",
+              "value": "hf.co/AmpereComputing/llama-3.2-3b-instruct-gguf:Llama-3.2-3B-Instruct-Q8R16.gguf"
+            },
+            {
+              "key": "OLLAMA_NUM_PARALLEL",
+              "value": "1"
+            }
+          ],
+          "pvcs": {
+            "retain_after_undeploy": false,
+            "volumes": [
+              {
+                "name": "ollama-model-cache-optimized-v1",
+                "mount_location": "/ollama-models",
+                "volume_size_in_gbs": 150
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "llmchat",
+        "depends_on": [
+          "ampere-optimized-llm-pool-v1",
+          "ollama"
+        ],
+        "exports": [
+          "service_url",
+          "service_name",
+          "internal_dns_name"
+        ],
+        "recipe": {
+          "recipe_id": "ampere_open_webui_chat_optimized_v1",
+          "recipe_mode": "service",
+          "deployment_name": "ampere-optimized-llmchat-v1",
+          "recipe_image_uri": "ghcr.io/open-webui/open-webui:v0.6.40",
+          "recipe_node_shape": "VM.Standard.A2.Flex",
+          "recipe_node_selector_arch": "arm64",
+          "recipe_use_shared_node_pool": true,
+          "recipe_shared_node_pool_selector": "ampere-optimized-llm-v1",
+          "recipe_container_port": "8080",
+          "recipe_host_port": "80",
+          "recipe_replica_count": 1,
+          "recipe_container_cpu_count": 4,
+          "recipe_container_memory_size": 16,
+          "recipe_ephemeral_storage_size": 20,
+          "recipe_shared_memory_volume_size_limit_in_mb": 512,
+          "recipe_container_env": [
+            {
+              "key": "PORT",
+              "value": "8080"
+            },
+            {
+              "key": "ENV",
+              "value": "dev"
+            },
+            {
+              "key": "VECTOR_DB",
+              "value": "chroma"
+            },
+            {
+              "key": "ENABLE_OLLAMA_API",
+              "value": "True"
+            },
+            {
+              "key": "OLLAMA_BASE_URL",
+              "value": "http://${ollama.internal_dns_name}:80"
+            },
+            {
+              "key": "OLLAMA_BASE_URLS",
+              "value": "http://${ollama.internal_dns_name}:80"
+            },
+            {
+              "key": "WEBUI_NAME",
+              "value": "Ampere Optimized LLM on OCI"
+            },
+            {
+              "key": "WEBUI_AUTH",
+              "value": "False"
+            },
+            {
+              "key": "ENABLE_SIGNUP",
+              "value": "False"
+            },
+            {
+              "key": "ENABLE_PERSISTENT_CONFIG",
+              "value": "False"
+            },
+            {
+              "key": "WEBUI_SECRET_KEY",
+              "value": "replace-this-before-production"
+            },
+            {
+              "key": "USE_OLLAMA_DOCKER",
+              "value": "false"
+            },
+            {
+              "key": "AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST",
+              "value": "30"
+            },
+            {
+              "key": "DEFAULT_MODELS",
+              "value": "hf.co/AmpereComputing/llama-3.2-3b-instruct-gguf:Llama-3.2-3B-Instruct-Q8R16.gguf"
+            },
+            {
+              "key": "DEFAULT_PINNED_MODELS",
+              "value": "hf.co/AmpereComputing/llama-3.2-3b-instruct-gguf:Llama-3.2-3B-Instruct-Q8R16.gguf"
+            }
+          ],
+          "pvcs": {
+            "retain_after_undeploy": false,
+            "volumes": [
+              {
+                "name": "open-webui-data-optimized-v1",
+                "mount_location": "/app/backend/data",
+                "volume_size_in_gbs": 50
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
